@@ -3,11 +3,20 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
+import "./CommitReveal.sol";
+import "./TimeUnit.sol";
+
 contract RPS {
+    // 0 - Scissors, 1 - Paper, 2 - Rock, 3 - Lizard, 4 - Spock
+
+    CommitReveal public commitReveal;
+    TimeUnit public timeUnit;
+
     uint public numPlayer = 0;
     uint public reward = 0;
-    mapping (address => uint) public player_choice; // 0 - Scissors, 1 - Paper, 2 - Rock, 3 - Lizard, 4 - Spock
+    mapping (address => uint) public player_choice;
     mapping (address => bool) public player_not_played;
+    mapping (address => bool) public player_revealed;
     address[] public players;
     address[4] public available_addresses = [
         0x5B38Da6a701c568545dCfcB03FcB875f56beddC4,
@@ -17,6 +26,12 @@ contract RPS {
     ];
 
     uint public numInput = 0;
+    uint public numReveal = 0;
+
+    constructor() {
+        commitReveal = new CommitReveal();
+        timeUnit = new TimeUnit();
+    }
 
     function addPlayer() public payable {
         require(_isCallerAvailable(), "You are not available player");
@@ -27,18 +42,36 @@ contract RPS {
         require(msg.value == 1 ether, "Need to send 1 ether");
         reward += msg.value;
         player_not_played[msg.sender] = true;
+        player_revealed[msg.sender] = false;
         players.push(msg.sender);
         numPlayer++;
     }
 
-    function input(uint choice) public  {
+    function input(bytes32 dataHash) public  {
         require(numPlayer == 2, "Need 2 players");
         require(player_not_played[msg.sender], "You are not the player");
-        require(choice == 0 || choice == 1 || choice == 2 || choice == 3 || choice == 4, "Wrong Input");
-        player_choice[msg.sender] = choice;
+        // commit hash
+        commitReveal.commit(dataHash);
         player_not_played[msg.sender] = false;
         numInput++;
-        if (numInput == 2) {
+    }
+
+    function revealChoice (bytes32 revealHash) public {
+        require(numInput == 2, "Need 2 inputs");
+        require(player_revealed[msg.sender], "You have already revealed");
+        player_revealed[msg.sender] = true;
+        // reveal hash
+        bool result = commitReveal.reveal(revealHash);
+        // if the reveal is valid, then add choice to player_choice
+        // if not, set player_choice as 5 - not valid (this player will not win)
+        if (result) {
+            uint8 choiceFromHash = getChoiceFromHash(revealHash);
+            player_choice[msg.sender] = choiceFromHash;
+        } else {
+            player_choice[msg.sender] = 5;
+        }
+        numReveal++;
+        if (numReveal == 2) {
             _checkWinnerAndPay();
         }
     }
@@ -77,9 +110,11 @@ contract RPS {
         for (uint i = 0; i < available_addresses.length; i++) {
             delete player_choice[available_addresses[i]];
             delete player_not_played[available_addresses[i]];
+            delete player_revealed[available_addresses[i]];
         }
         delete players;
         numInput = 0;
+        numReveal = 0;
     }
 
     function _isCallerAvailable() private view returns (bool) {
@@ -87,5 +122,11 @@ contract RPS {
             if(msg.sender == available_addresses[i]) return true;
         }
         return false;
+    }
+
+    function getChoiceFromHash(bytes32 revealHash) public pure returns (uint8) {
+        // Get the last byte and mod by 5
+        uint8 choice = uint8(revealHash[revealHash.length - 1]) % 5;
+        return choice;
     }
 }
