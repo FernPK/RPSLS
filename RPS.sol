@@ -67,7 +67,8 @@ contract RPS {
         if (result) {
             uint8 choiceFromHash = getChoiceFromHash(revealHash);
             player_choice[msg.sender] = choiceFromHash;
-        } else {
+        } 
+        else {
             player_choice[msg.sender] = 5;
         }
         numReveal++;
@@ -89,17 +90,33 @@ contract RPS {
         // Lizard (3) < [Rock (2), Scissors (0)]
         // Spock (4) < [Paper (1), Lizard (3)]
 
-        if ((p0Choice + 1) % 5 == p1Choice || ((p0Choice + 3) % 5 == p1Choice)) {
-            // account 0 wins
-            account1.transfer(reward);
-        }
-        else if ((p1Choice + 1) % 5 == p0Choice || ((p1Choice + 3) % 5 == p0Choice)) {
-            // account 1 wins
-            account0.transfer(reward);    
-        }
-        else {
+        // check if player cannot reveal choice properly -> choice 5
+        if (player_choice[players[0]] == 5 && player_choice[players[1]] == 5){
+            // split award
             account0.transfer(reward / 2);
             account1.transfer(reward / 2);
+        }
+        else if (player_choice[players[0]] == 5 && player_choice[players[1]] < 5) {
+            // account 1 wins
+            account1.transfer(reward);    
+        }
+        else if (player_choice[players[0]] < 5 && player_choice[players[1]] == 5) {
+            // account 0 wins
+            account0.transfer(reward);
+        }
+        else {
+            if ((p0Choice + 1) % 5 == p1Choice || ((p0Choice + 3) % 5 == p1Choice)) {
+                // account 0 wins
+                account1.transfer(reward);
+            }
+            else if ((p1Choice + 1) % 5 == p0Choice || ((p1Choice + 3) % 5 == p0Choice)) {
+                // account 1 wins
+                account0.transfer(reward);    
+            }
+            else {
+                account0.transfer(reward / 2);
+                account1.transfer(reward / 2);
+            }
         }
         _reset();
     }
