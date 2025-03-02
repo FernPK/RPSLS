@@ -27,6 +27,7 @@ contract RPS {
 
     uint public numInput = 0;
     uint public numReveal = 0;
+    uint public gameDuration = 3 minutes;
 
     constructor() {
         commitReveal = new CommitReveal();
@@ -53,28 +54,21 @@ contract RPS {
 
     function input(bytes32 dataHash) public  {
         require(numPlayer == 2, "Need 2 players");
-        require(player_not_played[msg.sender], "You are not the player");
+        require(player_not_played[msg.sender], "You have chosen the choice");
         // commit hash
-        commitReveal.commit(dataHash);
+        commitReveal.commit(dataHash, msg.sender);
         player_not_played[msg.sender] = false;
         numInput++;
     }
 
     function revealChoice (bytes32 revealHash) public {
-        require(numInput == 2, "Need 2 inputs");
-        require(player_revealed[msg.sender], "You have already revealed");
+        require(numInput == 2, "Need input from 2 players before reveal");
+        require(!player_revealed[msg.sender], "You have already revealed");
         player_revealed[msg.sender] = true;
         // reveal hash
-        bool result = commitReveal.reveal(revealHash);
-        // if the reveal is valid, then add choice to player_choice
-        // if not, set player_choice as 5 - not valid (this player will not win)
-        if (result) {
-            uint8 choiceFromHash = getChoiceFromHash(revealHash);
-            player_choice[msg.sender] = choiceFromHash;
-        } 
-        else {
-            player_choice[msg.sender] = 5;
-        }
+        commitReveal.reveal(revealHash, msg.sender);
+        uint8 choiceFromHash = getChoiceFromHash(revealHash);
+        player_choice[msg.sender] = choiceFromHash;
         numReveal++;
         if (numReveal == 2) {
             _checkWinnerAndPay();
@@ -94,33 +88,17 @@ contract RPS {
         // Lizard (3) < [Rock (2), Scissors (0)]
         // Spock (4) < [Paper (1), Lizard (3)]
 
-        // check if player cannot reveal choice properly -> choice 5
-        if (player_choice[players[0]] == 5 && player_choice[players[1]] == 5){
-            // split award
-            account0.transfer(reward / 2);
-            account1.transfer(reward / 2);
-        }
-        else if (player_choice[players[0]] == 5 && player_choice[players[1]] < 5) {
-            // account 1 wins
-            account1.transfer(reward);    
-        }
-        else if (player_choice[players[0]] < 5 && player_choice[players[1]] == 5) {
+        if ((p0Choice + 1) % 5 == p1Choice || ((p0Choice + 3) % 5 == p1Choice)) {
             // account 0 wins
             account0.transfer(reward);
         }
+        else if ((p1Choice + 1) % 5 == p0Choice || ((p1Choice + 3) % 5 == p0Choice)) {
+            // account 1 wins
+            account1.transfer(reward);    
+        }
         else {
-            if ((p0Choice + 1) % 5 == p1Choice || ((p0Choice + 3) % 5 == p1Choice)) {
-                // account 0 wins
-                account1.transfer(reward);
-            }
-            else if ((p1Choice + 1) % 5 == p0Choice || ((p1Choice + 3) % 5 == p0Choice)) {
-                // account 1 wins
-                account0.transfer(reward);    
-            }
-            else {
-                account0.transfer(reward / 2);
-                account1.transfer(reward / 2);
-            }
+            account0.transfer(reward / 2);
+            account1.transfer(reward / 2);
         }
         _reset();
     }
@@ -154,24 +132,48 @@ contract RPS {
     // get refund
     function getRefund() public {
         require(_isCallerAvailable(), "You are not available player");
-        require (numPlayer == 0, "The game has not started");
-        address payable account0 = payable(players[0]);
-        address payable account1 = payable(players[1]);
-        uint elapsed = timeUnit.elapsedMinutes();
-        if (numPlayer == 1 && elapsed >= 20 minutes) {
-            // no player 2 in 20 mins from start
+        require(numPlayer > 0, "The game has not started");
+        uint elapsed = timeUnit.elapsedSeconds();
+        require(elapsed >= gameDuration, "Not enough time passed to get refund");
+        if (numPlayer == 1 && elapsed >= gameDuration) {
+            // no player 2 in game duration
+            address payable account0 = payable(players[0]);
             account0.transfer(reward);
+            _reset();
         }
-        else if (numPlayer == 2 && numInput < 2 && elapsed >= 20 minutes) {
-            // any player does not input choice in 20 mins from start
+        else if (numPlayer == 2 && numInput < 2 && elapsed >= gameDuration) {
+            // any player does not input choice in game duration
+            address payable account0 = payable(players[0]);
+            address payable account1 = payable(players[1]);
             account0.transfer(reward/2);
             account1.transfer(reward/2);
+            _reset();
         }
-        else if (numPlayer == 2 && numInput == 2 && numReveal < 2 && elapsed >= 20 minutes) {
-            // any player does not reveal choice in 20 mins from start
-            account0.transfer(reward/2);
-            account1.transfer(reward/2);
+        else if (numPlayer == 2 && numInput == 2 && numReveal < 2 && elapsed >= gameDuration) {
+            // player does not reveal choice in game duration
+            address payable account0 = payable(players[0]);
+            address payable account1 = payable(players[1]);
+            if (numReveal == 0) {
+                account0.transfer(reward/2);
+                account1.transfer(reward/2);
+                _reset();
+            }
+            else if (player_revealed[players[0]]) {
+                account0.transfer(reward);
+                _reset();
+            }
+            else if (player_revealed[players[1]]) {
+                account1.transfer(reward);
+                _reset();
+            }
         }
-        _reset();
+    }
+
+    function getElapsedTime() public view returns (uint) {
+        return timeUnit.elapsedSeconds();
+    }
+
+    function getCommit(address sender) public view returns (bytes32, bool) {
+        return commitReveal.getCommit(sender);
     }
 }
