@@ -22,7 +22,7 @@ contract CommitReveal {
   }
   event CommitHash(address sender, bytes32 dataHash, uint64 block);
 
-  function reveal(bytes32 revealHash) public {
+  function reveal(bytes32 revealHash) public returns (bool) {
     //make sure it hasn't been revealed yet and set it to revealed
     require(commits[msg.sender].revealed==false,"CommitReveal::reveal: Already revealed");
     commits[msg.sender].revealed=true;
@@ -37,6 +37,8 @@ contract CommitReveal {
     //hash that with their reveal that so miner shouldn't know and mod it with some max number you want
     uint random = uint(keccak256(abi.encodePacked(blockHash,revealHash)))%max;
     emit RevealHash(msg.sender,revealHash,random);
+    // Return true to indicate the reveal was successful
+    return true;
   }
   event RevealHash(address sender, bytes32 revealHash, uint random);
 
