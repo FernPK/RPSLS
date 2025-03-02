@@ -6,7 +6,7 @@ pragma solidity >=0.7.0 <0.9.0;
 contract RPS {
     uint public numPlayer = 0;
     uint public reward = 0;
-    mapping (address => uint) public player_choice; // 0 - Rock, 1 - Paper , 2 - Scissors
+    mapping (address => uint) public player_choice; // 0 - Scissors, 1 - Paper, 2 - Rock, 3 - Lizard, 4 - Spock
     mapping (address => bool) public player_not_played;
     address[] public players;
     address[4] public available_addresses = [
@@ -34,7 +34,7 @@ contract RPS {
     function input(uint choice) public  {
         require(numPlayer == 2, "Need 2 players");
         require(player_not_played[msg.sender], "You are not the player");
-        require(choice == 0 || choice == 1 || choice == 2, "Wrong Input");
+        require(choice == 0 || choice == 1 || choice == 2 || choice == 3 || choice == 4, "Wrong Input");
         player_choice[msg.sender] = choice;
         player_not_played[msg.sender] = false;
         numInput++;
@@ -48,16 +48,23 @@ contract RPS {
         uint p1Choice = player_choice[players[1]];
         address payable account0 = payable(players[0]);
         address payable account1 = payable(players[1]);
-        if ((p0Choice + 1) % 3 == p1Choice) {
-            // to pay player[1]
+
+        // Rules
+        // Scissors (0) < [Rock (2), Spock (4)]
+        // Paper (1) < [Scissors (0), Lizard (3)]
+        // Rock (2) < [Paper (1), Spock (4)]
+        // Lizard (3) < [Rock (2), Scissors (0)]
+        // Spock (4) < [Paper (1), Lizard (3)]
+
+        if ((p0Choice + 1) % 5 == p1Choice || ((p0Choice + 3) % 5 == p1Choice)) {
+            // account 0 wins
             account1.transfer(reward);
         }
-        else if ((p1Choice + 1) % 3 == p0Choice) {
-            // to pay player[0]
+        else if ((p1Choice + 1) % 5 == p0Choice || ((p1Choice + 3) % 5 == p0Choice)) {
+            // account 1 wins
             account0.transfer(reward);    
         }
         else {
-            // to split reward
             account0.transfer(reward / 2);
             account1.transfer(reward / 2);
         }
