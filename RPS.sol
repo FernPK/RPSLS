@@ -31,6 +31,7 @@ contract RPS {
     constructor() {
         commitReveal = new CommitReveal();
         timeUnit = new TimeUnit();
+        
     }
 
     function addPlayer() public payable {
@@ -45,6 +46,9 @@ contract RPS {
         player_revealed[msg.sender] = false;
         players.push(msg.sender);
         numPlayer++;
+        if (numPlayer == 1) {
+            timeUnit.setStartTime();
+        }
     }
 
     function input(bytes32 dataHash) public  {
@@ -145,5 +149,29 @@ contract RPS {
         // Get the last byte and mod by 5
         uint8 choice = uint8(revealHash[revealHash.length - 1]) % 5;
         return choice;
+    }
+
+    // get refund
+    function getRefund() public {
+        require(_isCallerAvailable(), "You are not available player");
+        require (numPlayer == 0, "The game has not started");
+        address payable account0 = payable(players[0]);
+        address payable account1 = payable(players[1]);
+        uint elapsed = timeUnit.elapsedMinutes();
+        if (numPlayer == 1 && elapsed >= 20 minutes) {
+            // no player 2 in 20 mins from start
+            account0.transfer(reward);
+        }
+        else if (numPlayer == 2 && numInput < 2 && elapsed >= 20 minutes) {
+            // any player does not input choice in 20 mins from start
+            account0.transfer(reward/2);
+            account1.transfer(reward/2);
+        }
+        else if (numPlayer == 2 && numInput == 2 && numReveal < 2 && elapsed >= 20 minutes) {
+            // any player does not reveal choice in 20 mins from start
+            account0.transfer(reward/2);
+            account1.transfer(reward/2);
+        }
+        _reset();
     }
 }
