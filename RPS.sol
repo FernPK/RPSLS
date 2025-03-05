@@ -27,7 +27,7 @@ contract RPS {
 
     uint public numInput = 0;
     uint public numReveal = 0;
-    uint public gameDuration = 3 minutes;
+    uint public gameDuration = 20 minutes;
 
     constructor() {
         commitReveal = new CommitReveal();
